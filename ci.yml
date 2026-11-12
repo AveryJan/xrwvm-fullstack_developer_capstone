@@ -1,0 +1,36 @@
+name: Best Cars CI
+on:
+  push:
+  pull_request:
+jobs:
+  django-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Django
+        run: pip install -r server/requirements.txt
+      - name: Django checks
+        working-directory: server
+        run: python manage.py check
+      - name: Django unit tests
+        working-directory: server
+        run: python manage.py test
+  node-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate JS syntax
+        run: |
+          node --check server/backend/server.js
+          node --check server/sentiment/server.js
+      - name: Build React frontend
+        working-directory: server/frontend
+        run: |
+          npm install
+          npm run build
