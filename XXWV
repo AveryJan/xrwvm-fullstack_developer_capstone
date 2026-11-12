@@ -1,0 +1,39 @@
+# Publish the supplied capstone ZIP into the existing GitHub repository using Git.
+# Requires Git for Windows and GitHub authentication for pushes.
+$ErrorActionPreference = 'Stop'
+$repo = 'https://github.com/AveryJan/xrwvm-fullstack_developer_capstone.git'
+$zip = Join-Path $PSScriptRoot 'fullstack_developer_capstone_new_repo.zip'
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'Git is not installed. Install Git for Windows (https://git-scm.com/downloads/win) and rerun.' }
+if (-not (Test-Path $zip)) { throw "Missing ZIP beside this script: $zip" }
+$work = Join-Path $env:TEMP ('capstone-publish-' + [guid]::NewGuid().ToString('N'))
+$target = Join-Path $work 'repo'
+$extracted = Join-Path $work 'extracted'
+New-Item -ItemType Directory -Path $work | Out-Null
+try {
+  git clone $repo $target
+  if ($LASTEXITCODE -ne 0) { throw 'Git clone failed.' }
+  Expand-Archive -LiteralPath $zip -DestinationPath $extracted -Force
+  # Remove only mistakenly flattened root-level files. README/.gitignore are updated from ZIP.
+  $flat = @('About.html','Contact.html','Register.jsx','__init__.py','apps.py','bootstrap.min.css','car.svg','cars.jpeg','check_apis.sh','ci.yml','contactus.png','contactus.svg','dealer.html','head.html','index.html','main.jsx','manage.py','nav.html','package.json','requirements.txt','review.html','server.js','settings.py','style.css','tests.py','urls.py','views.py','vite.config.js','wsgi.py')
+  foreach ($name in $flat) { $item = Join-Path $target $name; if (Test-Path -LiteralPath $item -PathType Leaf) { Remove-Item -LiteralPath $item -Force } }
+  Copy-Item -Path (Join-Path $extracted '*') -Destination $target -Recurse -Force
+  Copy-Item -LiteralPath (Join-Path $extracted '.gitignore') -Destination (Join-Path $target '.gitignore') -Force
+  # Expand-Archive preserves the .github directory but the wildcard copy may skip hidden folders.
+  $workflowDir = Join-Path $target '.github/workflows'
+  New-Item -ItemType Directory -Path $workflowDir -Force | Out-Null
+  Copy-Item -LiteralPath (Join-Path $extracted '.github/workflows/ci.yml') -Destination (Join-Path $workflowDir 'ci.yml') -Force
+  Push-Location $target
+  try {
+    git add -A
+    git status --short
+    git diff --cached --quiet
+    if ($LASTEXITCODE -eq 0) { Write-Host 'No changes to publish.'; exit 0 }
+    git commit -m 'Restore complete fullstack capstone folder structure'
+    if ($LASTEXITCODE -ne 0) { throw 'Git commit failed. Configure your git user.name and user.email.' }
+    git push origin HEAD:main
+    if ($LASTEXITCODE -ne 0) { throw 'Git push failed. Sign into GitHub in Git Credential Manager or GitHub Desktop.' }
+    Write-Host 'Published successfully: https://github.com/AveryJan/xrwvm-fullstack_developer_capstone'
+  } finally { Pop-Location }
+} finally {
+  Write-Host "Temporary working directory: $work"
+}
